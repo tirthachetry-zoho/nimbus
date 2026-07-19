@@ -1,4 +1,4 @@
-use rquickjs::{Context, Runtime, Function, Value, Ctx};
+use rquickjs::{Context, Ctx, Function, Runtime, Value};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -52,7 +52,10 @@ pub struct TestResult {
     pub error: Option<String>,
 }
 
-pub fn execute_script(script: &str, context: &ScriptContext) -> Result<ScriptResult, rquickjs::Error> {
+pub fn execute_script(
+    script: &str,
+    context: &ScriptContext,
+) -> Result<ScriptResult, rquickjs::Error> {
     let rt = Runtime::new()?;
     let ctx = Context::full(&rt)?;
 
@@ -122,10 +125,11 @@ pub fn execute_script(script: &str, context: &ScriptContext) -> Result<ScriptRes
         let errors: Vec<String> = Vec::new();
 
         // Add helper functions
-        let set_header_fn = Function::new(ctx.clone(), |_ctx: Ctx, _key: String, _value: String| {
-            // This would need to be stored externally in a real implementation
-            Ok::<(), rquickjs::Error>(())
-        })?;
+        let set_header_fn =
+            Function::new(ctx.clone(), |_ctx: Ctx, _key: String, _value: String| {
+                // This would need to be stored externally in a real implementation
+                Ok::<(), rquickjs::Error>(())
+            })?;
         global.set("setHeader", set_header_fn)?;
 
         let set_var_fn = Function::new(ctx.clone(), |_ctx: Ctx, _key: String, _value: String| {
@@ -199,7 +203,9 @@ mod tests {
             response: None,
         };
 
-        context.environment.insert("baseUrl".to_string(), "https://api.example.com".to_string());
+        context
+            .environment
+            .insert("baseUrl".to_string(), "https://api.example.com".to_string());
 
         let script = r#"
             log("Base URL: " + environment.baseUrl);
@@ -299,11 +305,14 @@ pub fn execute_test_assertions(
     let ctx = if let Ok(c) = rt.and_then(|r| Context::full(&r)) {
         c
     } else {
-        return assertions.iter().map(|a| TestResult {
-            assertion_id: a.id.clone(),
-            passed: false,
-            error: Some("Failed to create JS runtime".to_string()),
-        }).collect();
+        return assertions
+            .iter()
+            .map(|a| TestResult {
+                assertion_id: a.id.clone(),
+                passed: false,
+                error: Some("Failed to create JS runtime".to_string()),
+            })
+            .collect();
     };
 
     let mut results = Vec::new();
@@ -359,11 +368,14 @@ pub fn execute_test_assertions(
         // Context execution succeeded
     } else {
         // Context execution failed
-        return assertions.iter().map(|a| TestResult {
-            assertion_id: a.id.clone(),
-            passed: false,
-            error: Some("Context execution failed".to_string()),
-        }).collect();
+        return assertions
+            .iter()
+            .map(|a| TestResult {
+                assertion_id: a.id.clone(),
+                passed: false,
+                error: Some("Context execution failed".to_string()),
+            })
+            .collect();
     }
 
     results

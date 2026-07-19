@@ -9,6 +9,7 @@ const COLORS: Record<HttpMethod, string> = {
   HEAD: "text-method-other",
   OPTIONS: "text-method-other",
   QUERY: "text-method-query",
+  GRAPHQL: "text-method-other",
 };
 
 export default function MethodBadge({ method, compact = false }: { method: HttpMethod; compact?: boolean }) {

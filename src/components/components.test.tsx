@@ -95,7 +95,7 @@ describe("KeyValueEditor", () => {
 describe("ResponseViewer", () => {
   it("prompts to send a request when the active tab has no response", () => {
     useStore.setState({
-      tabs: [{ path: "/a.nreq", title: "A", request: baseRequest("A"), response: null, sending: false, dirty: false }],
+      tabs: [{ path: "/a.nreq", title: "A", request: baseRequest("A"), response: null, sending: false, dirty: false, responseHistory: [] }],
       activeTabPath: "/a.nreq",
     });
     render(<ResponseViewer />);
@@ -112,6 +112,7 @@ describe("ResponseViewer", () => {
           response: { status: 201, status_text: "Created", headers: {}, body: "{}", duration_ms: 42, size_bytes: 7 },
           sending: false,
           dirty: false,
+          responseHistory: [],
         },
       ],
       activeTabPath: "/a.nreq",
@@ -132,6 +133,7 @@ describe("ResponseViewer", () => {
           response: { status: 200, status_text: "OK", headers: {}, body: '{"a":1}', duration_ms: 1, size_bytes: 1 },
           sending: false,
           dirty: false,
+          responseHistory: [],
         },
       ],
       activeTabPath: "/a.nreq",
@@ -145,8 +147,8 @@ describe("Tabs", () => {
   it("renders open tabs and switches the active one on click", () => {
     useStore.setState({
       tabs: [
-        { path: "/a.nreq", title: "A", request: baseRequest("A"), response: null, sending: false, dirty: false },
-        { path: "/b.nreq", title: "B", request: baseRequest("B"), response: null, sending: false, dirty: false },
+        { path: "/a.nreq", title: "A", request: baseRequest("A"), response: null, sending: false, dirty: false, responseHistory: [] },
+        { path: "/b.nreq", title: "B", request: baseRequest("B"), response: null, sending: false, dirty: false, responseHistory: [] },
       ],
       activeTabPath: "/a.nreq",
     });
@@ -157,7 +159,7 @@ describe("Tabs", () => {
 
   it("closes a tab via the close button", () => {
     useStore.setState({
-      tabs: [{ path: "/a.nreq", title: "A", request: baseRequest("A"), response: null, sending: false, dirty: false }],
+      tabs: [{ path: "/a.nreq", title: "A", request: baseRequest("A"), response: null, sending: false, dirty: false, responseHistory: [] }],
       activeTabPath: "/a.nreq",
     });
     render(<Tabs />);

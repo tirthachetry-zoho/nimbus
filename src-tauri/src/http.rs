@@ -1,5 +1,7 @@
 use crate::models::{HttpRequestPayload, HttpResponsePayload};
-use crate::scripting::{execute_script, execute_test_assertions, ScriptContext, RequestData, ResponseData};
+use crate::scripting::{
+    execute_script, execute_test_assertions, RequestData, ResponseData, ScriptContext,
+};
 use reqwest::header::{HeaderMap, HeaderName, HeaderValue};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -56,13 +58,15 @@ pub async fn send_request(payload: HttpRequestPayload) -> Result<HttpResponsePay
         if let (Some(host), Some(port)) = (&payload.proxy_host, payload.proxy_port) {
             let proxy = reqwest::Proxy::all(format!("{}:{}", host, port))
                 .map_err(|e| format!("invalid proxy config: {}", e))?;
-            
-            let proxy = if let (Some(username), Some(password)) = (&payload.proxy_username, &payload.proxy_password) {
+
+            let proxy = if let (Some(username), Some(password)) =
+                (&payload.proxy_username, &payload.proxy_password)
+            {
                 proxy.basic_auth(username, password)
             } else {
                 proxy
             };
-            
+
             builder = builder.proxy(proxy);
         }
     }
