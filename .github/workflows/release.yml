@@ -35,6 +35,10 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Add macOS universal targets
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add x86_64-apple-darwin aarch64-apple-darwin
+
       - name: Cache cargo
         uses: actions/cache@v4
         with:
@@ -79,9 +83,11 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         with:
           tagName: ${{ github.event.inputs.tag }}
           releaseName: "Nimbus ${{ github.event.inputs.tag }}"
-          releaseBody: "Installers for Linux (.deb/.rpm/AppImage), macOS (.dmg) and Windows (.msi/.exe). Version ${{ github.event.inputs.tag }}."
+          releaseBody: "Installers for Linux (.deb/.rpm/AppImage), macOS (.dmg, universal) and Windows (.msi/.exe). Version ${{ github.event.inputs.tag }}."
           releaseDraft: false
           prerelease: false
+          args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}
