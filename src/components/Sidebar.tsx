@@ -4,6 +4,22 @@ import { useStore } from "../lib/store";
 import * as api from "../lib/tauriApi";
 import CollectionTree from "./CollectionTree";
 
+function AuthorFooter() {
+  return (
+    <div className="w-full px-3 py-2 border-t border-border text-xs text-muted flex items-center gap-1.5">
+      <span>Made by</span>
+      <a
+        href="https://www.linkedin.com/in/tirthachetry/"
+        target="_blank"
+        rel="noreferrer"
+        className="text-accent hover:underline"
+      >
+        Tirtha Chetry
+      </a>
+    </div>
+  );
+}
+
 export default function Sidebar({ onManageEnv }: { onManageEnv: () => void }) {
   const workspaceRoot = useStore((s) => s.workspaceRoot);
   const workspaces = useStore((s) => s.workspaces);
@@ -60,7 +76,8 @@ export default function Sidebar({ onManageEnv }: { onManageEnv: () => void }) {
               ))}
             </div>
           </div>
-        )}
+            )}
+        <AuthorFooter />
       </div>
     );
   }
@@ -225,6 +242,7 @@ export default function Sidebar({ onManageEnv }: { onManageEnv: () => void }) {
           <CollectionTree nodes={tree} />
         )}
       </div>
+      <AuthorFooter />
     </div>
   );
 }
