@@ -13,7 +13,8 @@ pub async fn send_request(payload: HttpRequestPayload) -> Result<HttpResponsePay
     // Custom CA certificate (PEM bundle)
     if let Some(ca) = &payload.ca_cert {
         if !ca.trim().is_empty() {
-            let pem = std::fs::read(ca).map_err(|e| format!("failed to read CA cert '{ca}': {e}"))?;
+            let pem =
+                std::fs::read(ca).map_err(|e| format!("failed to read CA cert '{ca}': {e}"))?;
             let cert = reqwest::Certificate::from_pem(&pem)
                 .map_err(|e| format!("failed to parse CA cert '{ca}': {e}"))?;
             builder = builder.add_root_certificate(cert);
@@ -54,7 +55,11 @@ pub async fn send_request(payload: HttpRequestPayload) -> Result<HttpResponsePay
         .build()
         .map_err(|e| format!("failed to build http client: {e}"))?;
 
-    let method = reqwest::Method::from_str(&payload.method.to_uppercase())
+    let method_str = payload.method.to_uppercase();
+    if !is_valid_method(&method_str) {
+        return Err(format!("invalid HTTP method: {}", payload.method));
+    }
+    let method = reqwest::Method::from_str(&method_str)
         .map_err(|_| format!("invalid HTTP method: {}", payload.method))?;
 
     let mut req = client.request(method, &payload.url);
@@ -64,8 +69,10 @@ pub async fn send_request(payload: HttpRequestPayload) -> Result<HttpResponsePay
         if k.trim().is_empty() {
             continue;
         }
-        let name = HeaderName::from_str(k).map_err(|e| format!("invalid header name '{k}': {e}"))?;
-        let value = HeaderValue::from_str(v).map_err(|e| format!("invalid header value for '{k}': {e}"))?;
+        let name =
+            HeaderName::from_str(k).map_err(|e| format!("invalid header name '{k}': {e}"))?;
+        let value =
+            HeaderValue::from_str(v).map_err(|e| format!("invalid header value for '{k}': {e}"))?;
         header_map.insert(name, value);
     }
     req = req.headers(header_map);
@@ -77,7 +84,10 @@ pub async fn send_request(payload: HttpRequestPayload) -> Result<HttpResponsePay
     }
 
     let start = Instant::now();
-    let resp = req.send().await.map_err(|e| format!("request failed: {e}"))?;
+    let resp = req
+        .send()
+        .await
+        .map_err(|e| format!("request failed: {e}"))?;
     let status = resp.status();
     let status_text = status.canonical_reason().unwrap_or("").to_string();
 
@@ -86,7 +96,10 @@ pub async fn send_request(payload: HttpRequestPayload) -> Result<HttpResponsePay
         headers.insert(k.to_string(), v.to_str().unwrap_or("").to_string());
     }
 
-    let bytes = resp.bytes().await.map_err(|e| format!("failed reading response body: {e}"))?;
+    let bytes = resp
+        .bytes()
+        .await
+        .map_err(|e| format!("failed reading response body: {e}"))?;
     let size_bytes = bytes.len();
     let body = String::from_utf8_lossy(&bytes).to_string();
     let duration_ms = start.elapsed().as_millis();
@@ -99,4 +112,55 @@ pub async fn send_request(payload: HttpRequestPayload) -> Result<HttpResponsePay
         duration_ms,
         size_bytes,
     })
+}
+
+/// Returns true if `m` (already upper-cased) is a supported HTTP method.
+fn is_valid_method(m: &str) -> bool {
+    matches!(
+        m,
+        "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" | "QUERY"
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn payload(method: &str, url: &str) -> HttpRequestPayload {
+        HttpRequestPayload {
+            method: method.to_string(),
+            url: url.to_string(),
+            headers: HashMap::new(),
+            body: None,
+            body_type: None,
+            timeout_ms: Some(2000),
+            verify_ssl: Some(true),
+            ca_cert: None,
+            client_cert: None,
+            client_key: None,
+            client_key_pass: None,
+        }
+    }
+
+    #[tokio::test]
+    async fn invalid_method_returns_error_without_network() {
+        let result = send_request(payload("NOT_A_METHOD", "https://example.com")).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("invalid HTTP method"));
+    }
+
+    #[tokio::test]
+    async fn connection_refused_to_closed_port_returns_error() {
+        // Port 1 is not listening; this fails fast with connection refused and needs no
+        // external network access.
+        let result = send_request(payload("GET", "http://127.0.0.1:1/")).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("request failed"));
+    }
+
+    #[tokio::test]
+    async fn malformed_url_returns_error() {
+        let result = send_request(payload("GET", "this is not a url")).await;
+        assert!(result.is_err());
+    }
 }

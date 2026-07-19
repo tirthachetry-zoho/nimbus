@@ -9,7 +9,7 @@ import {
 import { BodyType, FsNode, HttpMethod, KeyValue, NimbusRequest } from "./types";
 
 function sanitize(name: string): string {
-  return name.trim().replace(/[\\/:*?"<>|]/g, "_") || "Untitled";
+  return name.trim().replace(/[\\/:*?"<>|\s]+/g, "_") || "Untitled";
 }
 
 function kv(key: string, value: string, enabled = true): KeyValue {
