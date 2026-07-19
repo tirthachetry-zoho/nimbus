@@ -159,6 +159,93 @@ pub fn execute_script(
     Ok(result)
 }
 
+pub fn execute_test_assertions(
+    assertions: &[TestAssertion],
+    response: &ResponseData,
+) -> Vec<TestResult> {
+    let rt = Runtime::new();
+    let ctx = if let Ok(c) = rt.and_then(|r| Context::full(&r)) {
+        c
+    } else {
+        return assertions
+            .iter()
+            .map(|a| TestResult {
+                assertion_id: a.id.clone(),
+                passed: false,
+                error: Some("Failed to create JS runtime".to_string()),
+            })
+            .collect();
+    };
+
+    let mut results = Vec::new();
+
+    if ctx
+        .with(|ctx| -> Result<(), rquickjs::Error> {
+            let global = ctx.globals();
+
+            // Set up response object
+            let response_obj = ctx.eval::<Value, _>("({})".to_string())?;
+            if let Some(obj) = response_obj.as_object() {
+                obj.set("status", response.status)?;
+                obj.set("statusText", response.status_text.clone())?;
+
+                let headers_obj = ctx.eval::<Value, _>("({})".to_string())?;
+                if let Some(h) = headers_obj.as_object() {
+                    for (k, v) in &response.headers {
+                        h.set(k, v.clone())?;
+                    }
+                }
+                obj.set("headers", headers_obj)?;
+                obj.set("body", response.body.clone())?;
+                obj.set("duration", response.duration_ms as f64)?;
+            }
+            global.set("response", response_obj)?;
+
+            for assertion in assertions {
+                if !assertion.enabled {
+                    continue;
+                }
+
+                let result = ctx.eval::<Value, _>(assertion.expression.clone());
+                match result {
+                    Ok(value) => {
+                        let passed = value.as_bool().unwrap_or(false);
+                        results.push(TestResult {
+                            assertion_id: assertion.id.clone(),
+                            passed,
+                            error: None,
+                        });
+                    }
+                    Err(e) => {
+                        results.push(TestResult {
+                            assertion_id: assertion.id.clone(),
+                            passed: false,
+                            error: Some(format!("Evaluation error: {}", e)),
+                        });
+                    }
+                }
+            }
+
+            Ok(())
+        })
+        .is_ok()
+    {
+        // Context execution succeeded
+    } else {
+        // Context execution failed
+        return assertions
+            .iter()
+            .map(|a| TestResult {
+                assertion_id: a.id.clone(),
+                passed: false,
+                error: Some("Context execution failed".to_string()),
+            })
+            .collect();
+    }
+
+    results
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -295,88 +382,4 @@ mod tests {
         let results = execute_test_assertions(&[], &sample_response());
         assert!(results.is_empty());
     }
-}
-
-pub fn execute_test_assertions(
-    assertions: &[TestAssertion],
-    response: &ResponseData,
-) -> Vec<TestResult> {
-    let rt = Runtime::new();
-    let ctx = if let Ok(c) = rt.and_then(|r| Context::full(&r)) {
-        c
-    } else {
-        return assertions
-            .iter()
-            .map(|a| TestResult {
-                assertion_id: a.id.clone(),
-                passed: false,
-                error: Some("Failed to create JS runtime".to_string()),
-            })
-            .collect();
-    };
-
-    let mut results = Vec::new();
-
-    if let Ok(_) = ctx.with(|ctx| -> Result<(), rquickjs::Error> {
-        let global = ctx.globals();
-
-        // Set up response object
-        let response_obj = ctx.eval::<Value, _>("({})".to_string())?;
-        if let Some(obj) = response_obj.as_object() {
-            obj.set("status", response.status)?;
-            obj.set("statusText", response.status_text.clone())?;
-
-            let headers_obj = ctx.eval::<Value, _>("({})".to_string())?;
-            if let Some(h) = headers_obj.as_object() {
-                for (k, v) in &response.headers {
-                    h.set(k, v.clone())?;
-                }
-            }
-            obj.set("headers", headers_obj)?;
-            obj.set("body", response.body.clone())?;
-            obj.set("duration", response.duration_ms as f64)?;
-        }
-        global.set("response", response_obj)?;
-
-        for assertion in assertions {
-            if !assertion.enabled {
-                continue;
-            }
-
-            let result = ctx.eval::<Value, _>(assertion.expression.clone());
-            match result {
-                Ok(value) => {
-                    let passed = value.as_bool().unwrap_or(false);
-                    results.push(TestResult {
-                        assertion_id: assertion.id.clone(),
-                        passed,
-                        error: None,
-                    });
-                }
-                Err(e) => {
-                    results.push(TestResult {
-                        assertion_id: assertion.id.clone(),
-                        passed: false,
-                        error: Some(format!("Evaluation error: {}", e)),
-                    });
-                }
-            }
-        }
-
-        Ok(())
-    }) {
-        // Context execution succeeded
-    } else {
-        // Context execution failed
-        return assertions
-            .iter()
-            .map(|a| TestResult {
-                assertion_id: a.id.clone(),
-                passed: false,
-                error: Some("Context execution failed".to_string()),
-            })
-            .collect();
-    }
-
-    results
 }
