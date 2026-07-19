@@ -100,7 +100,7 @@ folder to git and share it like code.
 ## Current MVP scope
 
 - Collections as folders, requests as `.nreq` files, environments as `.nenv` files
-- Method, URL, query params, headers, body (JSON/text/XML/form), bearer/basic auth
+- Method, URL, query params, headers, body (JSON/text/XML/form/graphql), bearer/basic auth
 - Environment variables with `{{var}}` interpolation, plus collection-level (`vars.nenv`) and
   global (`environments/globals.nenv`) variables, and per-request local variables
 - Response viewer: status, timing, size, headers, pretty-printed JSON body
@@ -111,14 +111,18 @@ folder to git and share it like code.
   - Export the open workspace back to a **Postman v2.1** collection
 - TLS / client-certificate settings per request (custom CA, mTLS client cert/key, PFX password)
 - Request notes via a `docs` block
+- **Pre-request / post-response scripting** with JavaScript sandbox (QuickJS)
+- **Test assertions** with expression evaluation against response data
+- **GraphQL support** with dedicated body type and query handling
+- **HTTP proxy settings** per request (host, port, authentication)
+- **Multiple workspaces** with recent workspaces list
+- **Response history** with last 20 responses stored per request
 
 ## Roadmap ideas (not yet built)
 
-- Pre-request / post-response scripting (JS, sandboxed)
-- Request chaining & test assertions, with a runner + CI mode
-- GraphQL and WebSocket support
-- Cookie jar and HTTP proxy settings
-- Multiple workspaces / recent workspaces list
+- Request chaining & collection runner with CI mode
+- WebSocket support
+- Cookie jar and persistence
 - Diff view for response history
 
 ## Why Tauri over Electron

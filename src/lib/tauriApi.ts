@@ -68,7 +68,7 @@ export function interpolate(input: string, vars: KeyValue[]): string {
   return resolveVars(input, vars);
 }
 
-export async function sendRequest(req: NimbusRequest, envVars: KeyValue[]): Promise<HttpResponse> {
+export async function sendRequest(req: NimbusRequest, envVars: KeyValue[], globalVars: KeyValue[] = [], collectionVars: KeyValue[] = []): Promise<HttpResponse> {
   const headers: Record<string, string> = {};
   for (const h of req.headers) {
     if (h.enabled && h.key.trim()) headers[interpolate(h.key, envVars)] = interpolate(h.value, envVars);
@@ -87,6 +87,8 @@ export async function sendRequest(req: NimbusRequest, envVars: KeyValue[]): Prom
     headers["Content-Type"] = "application/xml";
   } else if (req.bodyType === "form" && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/x-www-form-urlencoded";
+  } else if (req.bodyType === "graphql" && !headers["Content-Type"]) {
+    headers["Content-Type"] = "application/json";
   }
 
   const enabledParams = req.params.filter((p) => p.enabled && p.key.trim());
@@ -107,11 +109,48 @@ export async function sendRequest(req: NimbusRequest, envVars: KeyValue[]): Prom
       usp.append(line.slice(0, idx).trim(), interpolate(line.slice(idx + 1).trim(), envVars));
     }
     body = usp.toString();
+  } else if (req.bodyType === "graphql") {
+    // GraphQL body: wrap in JSON with query field
+    const graphqlQuery = interpolate(body, envVars);
+    body = JSON.stringify({ query: graphqlQuery });
   } else {
     body = interpolate(body, envVars);
   }
 
   const tls: TlsSettings = req.tls;
+
+  // Prepare variable maps for scripting
+  const environmentVars: Record<string, string> = {};
+  for (const v of envVars) {
+    if (v.enabled && v.key) environmentVars[v.key] = v.value;
+  }
+
+  const globalVarsMap: Record<string, string> = {};
+  for (const v of globalVars) {
+    if (v.enabled && v.key) globalVarsMap[v.key] = v.value;
+  }
+
+  const collectionVarsMap: Record<string, string> = {};
+  for (const v of collectionVars) {
+    if (v.enabled && v.key) collectionVarsMap[v.key] = v.value;
+  }
+
+  const localVarsMap: Record<string, string> = {};
+  for (const v of req.localVars) {
+    if (v.enabled && v.key) localVarsMap[v.key] = v.value;
+  }
+
+  // Prepare test assertions
+  const tests = (req.tests || []).map(t => ({
+    id: t.id,
+    enabled: t.enabled,
+    expression: t.expression,
+    description: t.description,
+  }));
+
+  // Prepare proxy settings
+  const proxySettings = req.proxySettings;
+
   try {
     const resp = await invoke<HttpResponse>("send_request", {
       payload: {
@@ -126,6 +165,18 @@ export async function sendRequest(req: NimbusRequest, envVars: KeyValue[]): Prom
         client_cert: tls.clientCert || null,
         client_key: tls.clientKey || null,
         client_key_pass: tls.clientKeyPass || null,
+        pre_request_script: req.preRequestScript?.enabled ? req.preRequestScript.source : null,
+        post_response_script: req.postResponseScript?.enabled ? req.postResponseScript.source : null,
+        environment_vars: environmentVars,
+        global_vars: globalVarsMap,
+        collection_vars: collectionVarsMap,
+        local_vars: localVarsMap,
+        tests,
+        proxy_enabled: proxySettings?.enabled,
+        proxy_host: proxySettings?.host,
+        proxy_port: proxySettings?.port,
+        proxy_username: proxySettings?.username,
+        proxy_password: proxySettings?.password,
       },
     });
     return resp;

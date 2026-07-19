@@ -1,6 +1,6 @@
-export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" | "QUERY";
+export type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" | "QUERY" | "GRAPHQL";
 
-export type BodyType = "none" | "json" | "text" | "xml" | "form";
+export type BodyType = "none" | "json" | "text" | "xml" | "form" | "graphql";
 
 export type AuthMode = "none" | "bearer" | "basic";
 
@@ -26,6 +26,18 @@ export interface TlsSettings {
   clientKeyPass: string;
 }
 
+export interface Script {
+  enabled: boolean;
+  source: string;
+}
+
+export interface TestAssertion {
+  id: string;
+  enabled: boolean;
+  expression: string;
+  description?: string;
+}
+
 export interface NimbusRequest {
   name: string;
   method: HttpMethod;
@@ -38,6 +50,10 @@ export interface NimbusRequest {
   docs?: string;
   localVars: KeyValue[];
   tls: TlsSettings;
+  preRequestScript?: Script;
+  postResponseScript?: Script;
+  tests?: TestAssertion[];
+  proxySettings?: ProxySettings;
 }
 
 export interface NimbusEnvironment {
@@ -60,6 +76,7 @@ export interface OpenTab {
   dirty: boolean;
   response: HttpResponse | null;
   sending: boolean;
+  responseHistory: HttpResponse[];
 }
 
 export interface HttpResponse {
@@ -70,4 +87,29 @@ export interface HttpResponse {
   duration_ms: number;
   size_bytes: number;
   error?: string;
+  test_results?: TestResult[];
+}
+
+export interface TestResult {
+  assertion_id: string;
+  passed: boolean;
+  error?: string;
+}
+
+export interface Cookie {
+  domain: string;
+  name: string;
+  value: string;
+  path: string;
+  expires?: number;
+  http_only: boolean;
+  secure: boolean;
+}
+
+export interface ProxySettings {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username?: string;
+  password?: string;
 }

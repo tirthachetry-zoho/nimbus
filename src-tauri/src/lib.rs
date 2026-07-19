@@ -1,6 +1,7 @@
 mod fsops;
 mod http;
 mod models;
+mod scripting;
 
 pub fn run() {
     tauri::Builder::default()

@@ -5,11 +5,12 @@ import { BodyType, HttpMethod } from "../lib/types";
 import * as api from "../lib/tauriApi";
 import KeyValueEditor from "./KeyValueEditor";
 import MethodBadge from "./MethodBadge";
+import { ScriptEditor, TestAssertionEditor } from "./ScriptEditor";
 
-const METHODS: HttpMethod[] = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "QUERY"];
-const BODY_TYPES: BodyType[] = ["none", "json", "text", "xml", "form"];
+const METHODS: HttpMethod[] = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "QUERY", "GRAPHQL"];
+const BODY_TYPES: BodyType[] = ["none", "json", "text", "xml", "form", "graphql"];
 
-type SubTab = "params" | "headers" | "body" | "auth" | "vars" | "tls" | "docs";
+type SubTab = "params" | "headers" | "body" | "auth" | "vars" | "tls" | "docs" | "scripts" | "tests" | "proxy";
 
 export default function RequestBuilder() {
   const activeTabPath = useStore((s) => s.activeTabPath);
@@ -109,6 +110,9 @@ export default function RequestBuilder() {
             ["vars", `Vars${req.localVars.length ? ` (${req.localVars.length})` : ""}`],
             ["tls", "TLS"],
             ["docs", "Docs"],
+            ["scripts", "Scripts"],
+            ["tests", `Tests${req.tests?.length ? ` (${req.tests.length})` : ""}`],
+            ["proxy", "Proxy"],
           ] as [SubTab, string][]
         ).map(([key, label]) => (
           <button
@@ -324,6 +328,129 @@ export default function RequestBuilder() {
             value={req.docs ?? ""}
             onChange={(e) => updateActiveRequest({ docs: e.target.value })}
           />
+        )}
+
+        {sub === "scripts" && (
+          <div className="p-3 space-y-4">
+            <ScriptEditor
+              script={req.preRequestScript || { enabled: false, source: "" }}
+              onChange={(script) => updateActiveRequest({ preRequestScript: script })}
+              type="pre-request"
+            />
+            <ScriptEditor
+              script={req.postResponseScript || { enabled: false, source: "" }}
+              onChange={(script) => updateActiveRequest({ postResponseScript: script })}
+              type="post-response"
+            />
+          </div>
+        )}
+
+        {sub === "tests" && (
+          <div className="p-3">
+            <TestAssertionEditor
+              tests={req.tests || []}
+              onChange={(tests) => updateActiveRequest({ tests })}
+            />
+          </div>
+        )}
+
+        {sub === "proxy" && (
+          <div className="p-3 flex flex-col gap-3 text-sm">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={req.proxySettings?.enabled || false}
+                onChange={(e) => updateActiveRequest({ 
+                  proxySettings: { 
+                    ...req.proxySettings, 
+                    enabled: e.target.checked,
+                    host: req.proxySettings?.host || "",
+                    port: req.proxySettings?.port || 8080,
+                  } 
+                })}
+                className="accent-accent"
+              />
+              Enable proxy
+            </label>
+
+            {req.proxySettings?.enabled && (
+              <>
+                <div className="flex gap-2">
+                  <div className="flex-1 flex flex-col gap-1">
+                    <span className="text-muted text-xs">Host</span>
+                    <input
+                      className="bg-panel2 border border-border rounded-sm px-3 py-1.5 font-mono text-sm outline-none focus:border-accent"
+                      placeholder="proxy.example.com"
+                      value={req.proxySettings?.host || ""}
+                      onChange={(e) => updateActiveRequest({ 
+                        proxySettings: { 
+                          ...req.proxySettings, 
+                          host: e.target.value,
+                          enabled: true,
+                          port: req.proxySettings?.port || 8080,
+                        } 
+                      })}
+                    />
+                  </div>
+                  <div className="w-24 flex flex-col gap-1">
+                    <span className="text-muted text-xs">Port</span>
+                    <input
+                      type="number"
+                      className="bg-panel2 border border-border rounded-sm px-3 py-1.5 font-mono text-sm outline-none focus:border-accent"
+                      placeholder="8080"
+                      value={req.proxySettings?.port || 8080}
+                      onChange={(e) => updateActiveRequest({ 
+                        proxySettings: { 
+                          ...req.proxySettings, 
+                          port: parseInt(e.target.value) || 8080,
+                          enabled: true,
+                          host: req.proxySettings?.host || "",
+                        } 
+                      })}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <div className="flex-1 flex flex-col gap-1">
+                    <span className="text-muted text-xs">Username (optional)</span>
+                    <input
+                      className="bg-panel2 border border-border rounded-sm px-3 py-1.5 font-mono text-sm outline-none focus:border-accent"
+                      placeholder="username"
+                      value={req.proxySettings?.username || ""}
+                      onChange={(e) => updateActiveRequest({ 
+                        proxySettings: { 
+                          ...req.proxySettings, 
+                          username: e.target.value,
+                          enabled: true,
+                          host: req.proxySettings?.host || "",
+                          port: req.proxySettings?.port || 8080,
+                        } 
+                      })}
+                    />
+                  </div>
+                  <div className="flex-1 flex flex-col gap-1">
+                    <span className="text-muted text-xs">Password (optional)</span>
+                    <input
+                      type="password"
+                      className="bg-panel2 border border-border rounded-sm px-3 py-1.5 font-mono text-sm outline-none focus:border-accent"
+                      placeholder="password"
+                      value={req.proxySettings?.password || ""}
+                      onChange={(e) => updateActiveRequest({ 
+                        proxySettings: { 
+                          ...req.proxySettings, 
+                          password: e.target.value,
+                          enabled: true,
+                          host: req.proxySettings?.host || "",
+                          port: req.proxySettings?.port || 8080,
+                        } 
+                      })}
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>

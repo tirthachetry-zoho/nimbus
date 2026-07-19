@@ -1,6 +1,6 @@
-import { AuthMode, BodyType, HttpMethod, KeyValue, NimbusEnvironment, NimbusRequest, TlsSettings } from "./types";
+import { AuthMode, BodyType, HttpMethod, KeyValue, NimbusEnvironment, NimbusRequest, TlsSettings, Script, TestAssertion } from "./types";
 
-const METHODS: HttpMethod[] = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "QUERY"];
+const METHODS: HttpMethod[] = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS", "QUERY", "GRAPHQL"];
 
 function uid(): string {
   return Math.random().toString(36).slice(2, 10);
@@ -104,6 +104,9 @@ export function emptyRequest(name = "Untitled Request"): NimbusRequest {
     auth: { mode: "none" },
     localVars: [],
     tls: { verifySsl: true, caCert: "", clientCert: "", clientKey: "", clientKeyPass: "" },
+    preRequestScript: { enabled: false, source: "" },
+    postResponseScript: { enabled: false, source: "" },
+    tests: [],
   };
 }
 
@@ -147,7 +150,7 @@ export function parseRequestFile(content: string): NimbusRequest {
     }
   }
 
-  for (const bt of ["json", "text", "xml", "form"] as BodyType[]) {
+  for (const bt of ["json", "text", "xml", "form", "graphql"] as BodyType[]) {
     const b = map.get(`body:${bt}`);
     if (b) {
       req.bodyType = bt;
@@ -171,6 +174,42 @@ export function parseRequestFile(content: string): NimbusRequest {
       clientKey: kv.clientKey || "",
       clientKeyPass: kv.clientKeyPass || "",
     };
+  }
+
+  const preScript = map.get("script:pre-request");
+  if (preScript) {
+    const kv = parseSingleKV(preScript.lines);
+    const source = preScript.lines
+      .filter((l) => !/^\s*enabled\s*:/.test(l))
+      .join("\n")
+      .replace(/\n+$/, "");
+    req.preRequestScript = {
+      enabled: kv.enabled !== "false",
+      source,
+    };
+  }
+
+  const postScript = map.get("script:post-response");
+  if (postScript) {
+    const kv = parseSingleKV(postScript.lines);
+    const source = postScript.lines
+      .filter((l) => !/^\s*enabled\s*:/.test(l))
+      .join("\n")
+      .replace(/\n+$/, "");
+    req.postResponseScript = {
+      enabled: kv.enabled !== "false",
+      source,
+    };
+  }
+
+  const tests = map.get("tests");
+  if (tests) {
+    req.tests = parseKVLines(tests.lines).map((kv) => ({
+      id: kv.id,
+      enabled: kv.enabled,
+      expression: kv.key,
+      description: kv.value,
+    }));
   }
 
   return req;
@@ -237,6 +276,26 @@ export function serializeRequestFile(req: NimbusRequest): string {
       .map((l) => `  ${l}`)
       .join("\n");
     parts.push(`docs {\n${indented}\n}`);
+  }
+
+  if (req.preRequestScript && (req.preRequestScript.enabled || req.preRequestScript.source.trim())) {
+    const indented = req.preRequestScript.source
+      .split("\n")
+      .map((l) => `  ${l}`)
+      .join("\n");
+    parts.push(`script:pre-request {\n  enabled: ${req.preRequestScript.enabled}\n${indented}\n}`);
+  }
+
+  if (req.postResponseScript && (req.postResponseScript.enabled || req.postResponseScript.source.trim())) {
+    const indented = req.postResponseScript.source
+      .split("\n")
+      .map((l) => `  ${l}`)
+      .join("\n");
+    parts.push(`script:post-response {\n  enabled: ${req.postResponseScript.enabled}\n${indented}\n}`);
+  }
+
+  if (req.tests && req.tests.length) {
+    parts.push(`tests {\n${serializeKVLines(req.tests.map(t => ({ id: t.id, key: t.expression, value: t.description || "", enabled: t.enabled })))}\n}`);
   }
 
   return parts.join("\n\n") + "\n";

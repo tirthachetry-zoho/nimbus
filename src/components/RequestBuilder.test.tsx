@@ -39,7 +39,7 @@ const baseRequest: NimbusRequest = {
 const openTab = (overrides: Partial<typeof baseRequest> = {}) => {
   const request = { ...baseRequest, ...overrides };
   useStore.setState({
-    tabs: [{ path: "/ws/Ping.nreq", title: "Ping", request, response: null, sending: false, dirty: false }],
+    tabs: [{ path: "/ws/Ping.nreq", title: "Ping", request, response: null, sending: false, dirty: false, responseHistory: [] }],
     activeTabPath: "/ws/Ping.nreq",
   });
 };

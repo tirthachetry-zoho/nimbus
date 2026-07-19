@@ -21,6 +21,7 @@ reqwest = { version = "0.12", features = ["json", "multipart", "cookies", "nativ
 tokio = { version = "1", features = ["full"] }
 walkdir = "2"
 uuid = { version = "1", features = ["v4"] }
+rquickjs = { version = "0.5", features = ["array-buffer", "classes"] }
 
 [profile.release]
 panic = "abort"

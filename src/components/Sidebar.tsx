@@ -6,8 +6,11 @@ import CollectionTree from "./CollectionTree";
 
 export default function Sidebar({ onManageEnv }: { onManageEnv: () => void }) {
   const workspaceRoot = useStore((s) => s.workspaceRoot);
+  const workspaces = useStore((s) => s.workspaces);
   const tree = useStore((s) => s.tree);
   const openWorkspace = useStore((s) => s.openWorkspace);
+  const switchWorkspace = useStore((s) => s.switchWorkspace);
+  const removeRecentWorkspace = useStore((s) => s.removeRecentWorkspace);
   const createFolder = useStore((s) => s.createFolder);
   const createRequest = useStore((s) => s.createRequest);
   const environments = useStore((s) => s.environments);
@@ -19,6 +22,7 @@ export default function Sidebar({ onManageEnv }: { onManageEnv: () => void }) {
   const prompt = useStore((s) => s.prompt);
   const [envOpen, setEnvOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [recentOpen, setRecentOpen] = useState(false);
 
   async function handlePickWorkspace() {
     const dir = await api.pickFolder();
@@ -40,6 +44,23 @@ export default function Sidebar({ onManageEnv }: { onManageEnv: () => void }) {
           <FolderOpen size={14} />
           Open Workspace
         </button>
+        {workspaces.length > 0 && (
+          <div className="w-full mt-4 pt-4 border-t border-border">
+            <p className="text-muted text-xs mb-2">Recent workspaces</p>
+            <div className="space-y-1">
+              {workspaces.map((ws) => (
+                <button
+                  key={ws}
+                  onClick={() => switchWorkspace(ws)}
+                  className="w-full text-left px-2 py-1.5 text-xs text-text hover:bg-panel2 rounded truncate"
+                  title={ws}
+                >
+                  {ws.split(/[/\\]/).pop()}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -49,9 +70,45 @@ export default function Sidebar({ onManageEnv }: { onManageEnv: () => void }) {
   return (
     <div className="w-72 shrink-0 bg-panel border-r border-border flex flex-col">
       <div className="px-3 py-2.5 border-b border-border flex items-center gap-2">
-        <span className="font-mono text-accent font-semibold text-sm truncate">
-          {workspaceRoot.split(/[/\\]/).pop()}
-        </span>
+        <div className="relative">
+          <button
+            className="font-mono text-accent font-semibold text-sm truncate hover:opacity-80"
+            onClick={() => setRecentOpen((o) => !o)}
+          >
+            {workspaceRoot.split(/[/\\]/).pop()}
+          </button>
+          {recentOpen && (
+            <div className="absolute z-20 left-0 mt-1 bg-panel2 border border-border rounded-sm shadow-lg overflow-hidden w-48">
+              {workspaces.length > 0 && workspaces.map((ws) => (
+                <button
+                  key={ws}
+                  onClick={() => {
+                    switchWorkspace(ws);
+                    setRecentOpen(false);
+                  }}
+                  className="w-full text-left px-3 py-1.5 text-sm hover:bg-base truncate flex items-center justify-between group"
+                  title={ws}
+                >
+                  <span className="truncate">{ws.split(/[/\\]/).pop()}</span>
+                  {ws !== workspaceRoot && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeRecentWorkspace(ws);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 text-muted hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  )}
+                </button>
+              ))}
+              {workspaces.length === 0 && (
+                <div className="px-3 py-1.5 text-sm text-muted">No recent workspaces</div>
+              )}
+            </div>
+          )}
+        </div>
         <div className="ml-auto flex items-center gap-1">
           <button
             title="New request"

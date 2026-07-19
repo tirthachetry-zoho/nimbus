@@ -236,6 +236,87 @@ describe("serializeRequestFile", () => {
   });
 });
 
+describe("scripts and tests", () => {
+  it("emptyRequest includes script and test fields", () => {
+    const r = emptyRequest("S");
+    expect(r.preRequestScript).toEqual({ enabled: false, source: "" });
+    expect(r.postResponseScript).toEqual({ enabled: false, source: "" });
+    expect(r.tests).toEqual([]);
+  });
+
+  it("parses GRAPHQL as a method", () => {
+    const r = parseRequestFile("graphql {\n  url: https://api.example.com/graphql\n}");
+    expect(r.method).toBe("GRAPHQL");
+  });
+
+  it("parses a graphql body", () => {
+    const r = parseRequestFile(`post { url: x }
+body:graphql {
+  query { user { id } }
+}`);
+    expect(r.bodyType).toBe("graphql");
+    expect(r.body).toBe("query { user { id } }");
+  });
+
+  it("parses pre-request and post-response scripts", () => {
+    const content = `get { url: x }
+script:pre-request {
+  enabled: true
+  console.log("before")
+}
+script:post-response {
+  enabled: false
+  console.log("after")
+}`;
+    const r = parseRequestFile(content);
+    expect(r.preRequestScript).toEqual({ enabled: true, source: 'console.log("before")' });
+    expect(r.postResponseScript).toEqual({ enabled: false, source: 'console.log("after")' });
+  });
+
+  it("parses test assertions", () => {
+    const content = `get { url: x }
+tests {
+  response.status === 200: Status is 200
+  ~response.body.includes("ok"): Body contains ok
+}`;
+    const r = parseRequestFile(content);
+    expect(r.tests).toEqual([
+      { id: expect.any(String), enabled: true, expression: "response.status === 200", description: "Status is 200" },
+      { id: expect.any(String), enabled: false, expression: 'response.body.includes("ok")', description: "Body contains ok" },
+    ]);
+  });
+
+  it("round-trips scripts and tests through serialize/parse", () => {
+    const req = emptyRequest("Full");
+    req.method = "POST";
+    req.url = "https://api.example.com/graphql";
+    req.preRequestScript = { enabled: true, source: "log('pre')" };
+    req.postResponseScript = { enabled: true, source: "log('post')" };
+    req.tests = [
+      { id: "t1", enabled: true, expression: "response.status === 200", description: "ok status" },
+      { id: "t2", enabled: false, expression: "false", description: "disabled" },
+    ];
+
+    const text = serializeRequestFile(req);
+    const parsed = parseRequestFile(text);
+
+    expect(parsed.method).toBe("POST");
+    expect(parsed.preRequestScript).toEqual({ enabled: true, source: "log('pre')" });
+    expect(parsed.postResponseScript).toEqual({ enabled: true, source: "log('post')" });
+    expect(parsed.tests).toEqual([
+      { id: expect.any(String), enabled: true, expression: "response.status === 200", description: "ok status" },
+      { id: expect.any(String), enabled: false, expression: "false", description: "disabled" },
+    ]);
+  });
+
+  it("omits script sections when empty", () => {
+    const text = serializeRequestFile(emptyRequest("Min"));
+    expect(text).not.toContain("script:pre-request");
+    expect(text).not.toContain("script:post-response");
+    expect(text).not.toContain("tests {");
+  });
+});
+
 describe("environments", () => {
   it("emptyEnvironment uses the given name", () => {
     expect(emptyEnvironment("Dev").name).toBe("Dev");

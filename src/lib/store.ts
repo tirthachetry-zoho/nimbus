@@ -6,6 +6,7 @@ import { exportPostmanCollection, importBrunoCollection, importPostmanCollection
 
 interface AppState {
   workspaceRoot: string | null;
+  workspaces: string[];
   tree: FsNode[];
   loadingTree: boolean;
 
@@ -25,6 +26,9 @@ interface AppState {
 
   openWorkspace: (root: string) => Promise<void>;
   refreshTree: () => Promise<void>;
+  switchWorkspace: (root: string) => Promise<void>;
+  createWorkspace: (root: string) => Promise<void>;
+  removeRecentWorkspace: (root: string) => void;
 
   openRequestFile: (path: string) => Promise<void>;
   newRequestDraft: (folderPath: string) => void;
@@ -60,6 +64,7 @@ function activeEnvVars(get: () => AppState): KeyValue[] {
 
 export const useStore = create<AppState>((set, get) => ({
   workspaceRoot: null,
+  workspaces: [],
   tree: [],
   loadingTree: false,
 
@@ -72,9 +77,28 @@ export const useStore = create<AppState>((set, get) => ({
   promptState: { open: false, message: "", title: "", defaultValue: "", resolve: null },
 
   openWorkspace: async (root) => {
-    set({ workspaceRoot: root });
+    // Add to recent workspaces
+    const workspaces = get().workspaces.filter(w => w !== root);
+    workspaces.unshift(root);
+    // Keep only last 10 workspaces
+    if (workspaces.length > 10) workspaces.pop();
+    
+    set({ workspaceRoot: root, workspaces });
     await get().refreshTree();
     await get().loadEnvironments();
+  },
+
+  switchWorkspace: async (root) => {
+    await get().openWorkspace(root);
+  },
+
+  createWorkspace: async (root) => {
+    await api.createDirectory(root);
+    await get().openWorkspace(root);
+  },
+
+  removeRecentWorkspace: (root) => {
+    set({ workspaces: get().workspaces.filter(w => w !== root) });
   },
 
   refreshTree: async () => {
@@ -98,7 +122,7 @@ export const useStore = create<AppState>((set, get) => ({
     const content = await api.readTextFile(path);
     const request = parseRequestFile(content);
     const title = path.split(/[/\\]/).pop() || request.name;
-    const tab: OpenTab = { path, title, request, dirty: false, response: null, sending: false };
+    const tab: OpenTab = { path, title, request, dirty: false, response: null, sending: false, responseHistory: [] };
     set({ tabs: [...get().tabs, tab], activeTabPath: path });
   },
 
@@ -106,7 +130,7 @@ export const useStore = create<AppState>((set, get) => ({
     const id = newId();
     const path = `draft:${id}`;
     const request = emptyRequest("Untitled Request");
-    const tab: OpenTab = { path, title: "Untitled Request", request, dirty: true, response: null, sending: false };
+    const tab: OpenTab = { path, title: "Untitled Request", request, dirty: true, response: null, sending: false, responseHistory: [] };
     (tab as any)._folder = folderPath;
     set({ tabs: [...get().tabs, tab], activeTabPath: path });
   },
@@ -175,9 +199,15 @@ export const useStore = create<AppState>((set, get) => ({
     // precedence (low -> high): global, environment, collection, local
     const merged: KeyValue[] = [...globalVars, ...envVars, ...collectionVarsList, ...tab.request.localVars];
 
-    const response = await api.sendRequest(tab.request, merged);
+    const response = await api.sendRequest(tab.request, merged, globalVars, collectionVarsList);
     set({
-      tabs: get().tabs.map((t) => (t.path === path ? { ...t, sending: false, response } : t)),
+      tabs: get().tabs.map((t) => {
+        if (t.path === path) {
+          const newHistory = [...t.responseHistory, response].slice(-20); // Keep last 20 responses
+          return { ...t, sending: false, response, responseHistory: newHistory };
+        }
+        return t;
+      }),
     });
   },
 

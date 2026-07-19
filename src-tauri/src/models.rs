@@ -34,6 +34,34 @@ pub struct HttpRequestPayload {
     pub client_key: Option<String>, // path to PEM private key (when cert is PEM without key)
     #[serde(default)]
     pub client_key_pass: Option<String>, // password for encrypted PKCS12
+
+    // Scripting
+    #[serde(default)]
+    pub pre_request_script: Option<String>,
+    #[serde(default)]
+    pub post_response_script: Option<String>,
+    #[serde(default)]
+    pub environment_vars: HashMap<String, String>,
+    #[serde(default)]
+    pub global_vars: HashMap<String, String>,
+    #[serde(default)]
+    pub collection_vars: HashMap<String, String>,
+    #[serde(default)]
+    pub local_vars: HashMap<String, String>,
+    #[serde(default)]
+    pub tests: Vec<crate::scripting::TestAssertion>,
+
+    // Proxy settings
+    #[serde(default)]
+    pub proxy_enabled: Option<bool>,
+    #[serde(default)]
+    pub proxy_host: Option<String>,
+    #[serde(default)]
+    pub proxy_port: Option<u16>,
+    #[serde(default)]
+    pub proxy_username: Option<String>,
+    #[serde(default)]
+    pub proxy_password: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -44,4 +72,5 @@ pub struct HttpResponsePayload {
     pub body: String,
     pub duration_ms: u128,
     pub size_bytes: usize,
+    pub test_results: Vec<crate::scripting::TestResult>,
 }

@@ -212,4 +212,100 @@ describe("sendRequest", () => {
     expect(resp.status_text).toBe("Error");
     expect(resp.error).toBe("Error: boom");
   });
+
+  it("wraps a graphql body as a JSON query and sets Content-Type", async () => {
+    const req = emptyRequest("R");
+    req.bodyType = "graphql";
+    req.body = "query { user { id } }";
+    await api.sendRequest(req, []);
+    const [, payload] = invokeMock.mock.calls[0];
+    expect(payload.payload.headers["Content-Type"]).toBe("application/json");
+    expect(payload.payload.body).toBe(JSON.stringify({ query: "query { user { id } }" }));
+  });
+
+  it("interpolates the graphql body before wrapping", async () => {
+    const req = emptyRequest("R");
+    req.bodyType = "graphql";
+    req.body = "query { user(id: {{id}}) }";
+    await api.sendRequest(req, [{ id: "1", key: "id", value: "42", enabled: true }]);
+    const [, payload] = invokeMock.mock.calls[0];
+    expect(payload.payload.body).toBe(JSON.stringify({ query: "query { user(id: 42) }" }));
+  });
+
+  it("forwards global and collection vars to the payload", async () => {
+    const req = emptyRequest("R");
+    const globals = [{ id: "1", key: "g", value: "G", enabled: true }];
+    const collections = [{ id: "2", key: "c", value: "C", enabled: true }];
+    await api.sendRequest(req, [], globals, collections);
+    const [, payload] = invokeMock.mock.calls[0];
+    expect(payload.payload.global_vars).toEqual({ g: "G" });
+    expect(payload.payload.collection_vars).toEqual({ c: "C" });
+  });
+
+  it("forwards enabled local vars to the payload", async () => {
+    const req = emptyRequest("R");
+    req.localVars = [
+      { id: "1", key: "a", value: "A", enabled: true },
+      { id: "2", key: "b", value: "B", enabled: false },
+    ];
+    await api.sendRequest(req, []);
+    const [, payload] = invokeMock.mock.calls[0];
+    expect(payload.payload.local_vars).toEqual({ a: "A" });
+  });
+
+  it("forwards pre-request and post-response scripts when enabled", async () => {
+    const req = emptyRequest("R");
+    req.preRequestScript = { enabled: true, source: "log('pre')" };
+    req.postResponseScript = { enabled: true, source: "log('post')" };
+    await api.sendRequest(req, []);
+    const [, payload] = invokeMock.mock.calls[0];
+    expect(payload.payload.pre_request_script).toBe("log('pre')");
+    expect(payload.payload.post_response_script).toBe("log('post')");
+  });
+
+  it("omits scripts from the payload when disabled", async () => {
+    const req = emptyRequest("R");
+    req.preRequestScript = { enabled: false, source: "log('pre')" };
+    req.postResponseScript = { enabled: false, source: "log('post')" };
+    await api.sendRequest(req, []);
+    const [, payload] = invokeMock.mock.calls[0];
+    expect(payload.payload.pre_request_script).toBeNull();
+    expect(payload.payload.post_response_script).toBeNull();
+  });
+
+  it("forwards test assertions to the payload", async () => {
+    const req = emptyRequest("R");
+    req.tests = [
+      { id: "t1", enabled: true, expression: "response.status === 200", description: "ok" },
+      { id: "t2", enabled: false, expression: "false", description: "off" },
+    ];
+    await api.sendRequest(req, []);
+    const [, payload] = invokeMock.mock.calls[0];
+    expect(payload.payload.tests).toEqual([
+      { id: "t1", enabled: true, expression: "response.status === 200", description: "ok" },
+      { id: "t2", enabled: false, expression: "false", description: "off" },
+    ]);
+  });
+
+  it("forwards proxy settings to the payload", async () => {
+    const req = emptyRequest("R");
+    req.proxySettings = { enabled: true, host: "localhost", port: 8080, username: "u", password: "p" };
+    await api.sendRequest(req, []);
+    const [, payload] = invokeMock.mock.calls[0];
+    expect(payload.payload.proxy_enabled).toBe(true);
+    expect(payload.payload.proxy_host).toBe("localhost");
+    expect(payload.payload.proxy_port).toBe(8080);
+    expect(payload.payload.proxy_username).toBe("u");
+    expect(payload.payload.proxy_password).toBe("p");
+  });
+
+  it("omits proxy settings from the payload when disabled", async () => {
+    const req = emptyRequest("R");
+    req.proxySettings = { enabled: false, host: "localhost", port: 8080 };
+    await api.sendRequest(req, []);
+    const [, payload] = invokeMock.mock.calls[0];
+    expect(payload.payload.proxy_enabled).toBe(false);
+    expect(payload.payload.proxy_host).toBe("localhost");
+    expect(payload.payload.proxy_port).toBe(8080);
+  });
 });

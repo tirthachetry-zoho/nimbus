@@ -49,6 +49,7 @@ import { emptyRequest } from "./bruFormat";
 const reset = () =>
   useStore.setState({
     workspaceRoot: null,
+    workspaces: [],
     tree: [],
     loadingTree: false,
     tabs: [],
@@ -97,6 +98,53 @@ describe("workspace + tree", () => {
   it("refreshTree is a no-op without a workspace", async () => {
     await useStore.getState().refreshTree();
     expect(api.listTree).not.toHaveBeenCalled();
+  });
+});
+
+describe("recent workspaces", () => {
+  it("createWorkspace creates the directory and opens it as a workspace", async () => {
+    api.listTree.mockResolvedValueOnce([]);
+    await useStore.getState().createWorkspace("/new/ws");
+    expect(api.createDirectory).toHaveBeenCalledWith("/new/ws");
+    expect(useStore.getState().workspaceRoot).toBe("/new/ws");
+    expect(useStore.getState().workspaces).toEqual(["/new/ws"]);
+  });
+
+  it("openWorkspace records the root in recents", async () => {
+    api.listTree.mockResolvedValueOnce([]);
+    await useStore.getState().openWorkspace("/ws1");
+    expect(useStore.getState().workspaces).toEqual(["/ws1"]);
+  });
+
+  it("openWorkspace moves an existing root to the front", async () => {
+    useStore.setState({ workspaces: ["/ws2", "/ws1"] });
+    api.listTree.mockResolvedValueOnce([]);
+    await useStore.getState().openWorkspace("/ws1");
+    expect(useStore.getState().workspaces).toEqual(["/ws1", "/ws2"]);
+  });
+
+  it("openWorkspace caps recents at 10 entries", async () => {
+    const initial = Array.from({ length: 10 }, (_, i) => `/old${i}`);
+    useStore.setState({ workspaces: initial });
+    api.listTree.mockResolvedValueOnce([]);
+    await useStore.getState().openWorkspace("/new");
+    const recents = useStore.getState().workspaces;
+    expect(recents).toHaveLength(10);
+    expect(recents[0]).toBe("/new");
+    expect(recents).not.toContain("/old9");
+  });
+
+  it("switchWorkspace opens the given workspace", async () => {
+    api.listTree.mockResolvedValueOnce([]);
+    await useStore.getState().switchWorkspace("/wsX");
+    expect(useStore.getState().workspaceRoot).toBe("/wsX");
+    expect(useStore.getState().workspaces).toContain("/wsX");
+  });
+
+  it("removeRecentWorkspace drops the root from recents", () => {
+    useStore.setState({ workspaces: ["/ws1", "/ws2", "/ws3"] });
+    useStore.getState().removeRecentWorkspace("/ws2");
+    expect(useStore.getState().workspaces).toEqual(["/ws1", "/ws3"]);
   });
 });
 
@@ -201,6 +249,41 @@ describe("sendTabRequest", () => {
     const draft = useStore.getState().activeTabPath!;
     await useStore.getState().sendTabRequest(draft);
     expect(api.collectionVars).not.toHaveBeenCalled();
+  });
+
+  it("appends responses to responseHistory and passes global/collection vars", async () => {
+    useStore.setState({
+      workspaceRoot: "/ws",
+      environments: [{ path: "/ws/e.nenv", env: { name: "e", vars: [{ id: "1", key: "base", value: "https://api", enabled: true }] } }],
+      activeEnvPath: "/ws/e.nenv",
+      globalVars: [{ id: "2", key: "g", value: "G", enabled: true }],
+    });
+    api.collectionVars.mockResolvedValue([{ id: "cv", key: "c", value: "C", enabled: true }]);
+    api.readTextFile.mockResolvedValue("get { url: {{base}}/x }");
+    await useStore.getState().openRequestFile("/ws/A.nreq");
+
+    await useStore.getState().sendTabRequest("/ws/A.nreq");
+    await useStore.getState().sendTabRequest("/ws/A.nreq");
+
+    const tab = useStore.getState().tabs.find((t) => t.path === "/ws/A.nreq")!;
+    expect(tab.responseHistory).toHaveLength(2);
+    expect(tab.responseHistory[0].status).toBe(200);
+    expect(tab.responseHistory[1].status).toBe(200);
+
+    const lastCall = api.sendRequest.mock.calls[api.sendRequest.mock.calls.length - 1];
+    expect(lastCall[2]).toEqual([{ id: "2", key: "g", value: "G", enabled: true }]);
+    expect(lastCall[3]).toEqual([{ id: "cv", key: "c", value: "C", enabled: true }]);
+  });
+
+  it("caps responseHistory at the last 20 responses", async () => {
+    useStore.setState({ workspaceRoot: "/ws" });
+    api.readTextFile.mockResolvedValue("get { url: x }");
+    await useStore.getState().openRequestFile("/ws/A.nreq");
+    for (let i = 0; i < 25; i++) {
+      await useStore.getState().sendTabRequest("/ws/A.nreq");
+    }
+    const tab = useStore.getState().tabs.find((t) => t.path === "/ws/A.nreq")!;
+    expect(tab.responseHistory).toHaveLength(20);
   });
 });
 
