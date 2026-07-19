@@ -1,7 +1,8 @@
 name: Release
 
 # Manually triggered release pipeline. Builds the Tauri app for macOS, Windows and
-# Linux and publishes the binaries to a GitHub Release via tauri-action.
+# Linux and publishes the installable binaries (tagged with the release version) to a
+# GitHub Release via tauri-action.
 on:
   workflow_dispatch:
     inputs:
@@ -52,10 +53,27 @@ jobs:
             build-essential \
             curl wget file \
             libxdo-dev libssl-dev \
-            libayatana-appindicator3-dev librsvg2-dev
+            libayatana-appindicator3-dev librsvg2-dev \
+            rpm
 
       - name: Install frontend dependencies
         run: npm ci
+
+      - name: Set app version from release tag
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.tag }}"
+          VERSION="${VERSION#v}"
+          node -e '
+            const fs = require("fs");
+            const v = process.argv[1];
+            const cfg = JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8"));
+            cfg.version = v;
+            fs.writeFileSync("src-tauri/tauri.conf.json", JSON.stringify(cfg, null, 2) + "\n");
+            const cargo = fs.readFileSync("src-tauri/Cargo.toml", "utf8");
+            fs.writeFileSync("src-tauri/Cargo.toml", cargo.replace(/^version = ".*"$/m, "version = \"" + v + "\""));
+            console.log("Set app version to", v);
+          ' "$VERSION"
 
       - name: Build and publish with tauri-action
         uses: tauri-apps/tauri-action@v0
@@ -64,6 +82,6 @@ jobs:
         with:
           tagName: ${{ github.event.inputs.tag }}
           releaseName: "Nimbus ${{ github.event.inputs.tag }}"
-          releaseBody: "Automated release build of Nimbus ${{ github.event.inputs.tag }}."
+          releaseBody: "Installers for Linux (.deb/.rpm/AppImage), macOS (.dmg) and Windows (.msi/.exe). Version ${{ github.event.inputs.tag }}."
           releaseDraft: false
           prerelease: false
